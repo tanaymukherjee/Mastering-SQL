@@ -113,7 +113,18 @@ ORDER BY avg_gross DESC;
 
 
 -- ALTER table:
+-- Example 1:
 ALTER TABLE Customers DROP COLUMN Email;
+-- Example 2:
+ALTER TABLE Customers ALTER COLUMN Firstname TYPE varchar(64);
+-- Example 3:
+-- Disallow NULL values in firstname
+ALTER TABLE Customers ALTER COLUMN Firstname SET NOT NULL;
+-- Example 4: (Make your columns UNIQUE with ADD CONSTRAINT)
+ALTER TABLE Organizations ADD CONSTRAINT Organization_unq UNIQUE(Organization);
+-- Example 5: (ADD key CONSTRAINTs to the tables)
+ALTER TABLE Organizations RENAME COLUMN Organization TO ID;
+ALTER TABLE Organizations ADD CONSTRAINT Organization_pk PRIMARY KEY (ID);
 
 
 
@@ -166,3 +177,24 @@ SELECT transaction_date, amount + CAST(fee AS integer) AS net_amount
 FROM transactions;
 -- Type casts are a possible solution for data type issues.
 -- If you know that a certain column stores numbers as text, you can cast the column to a numeric form, i.e. to integer.
+
+
+
+-- Adding a surrogate key with serial data type
+ALTER TABLE professors ADD COLUMN id serial;
+-- serial type will add an incremental number that can be treated as a unique id.
+
+
+
+-- Concatenate columns to a surrogate key
+-- Count the number of distinct rows with columns make, model
+SELECT COUNT(DISTINCT(make, model)) FROM cars;
+
+-- Add the id column
+ALTER TABLE cars ADD COLUMN id varchar(128);
+
+-- Update id with make + model
+UPDATE cars SET id = CONCAT(make, model);
+
+-- Make id a primary key
+ALTER TABLE cars ADD CONSTRAINT id_pk PRIMARY KEY(id);
