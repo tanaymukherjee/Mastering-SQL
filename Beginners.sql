@@ -151,3 +151,18 @@ WHERE ProductID = ALL (SELECT ProductID FROM OrderDetails WHERE Quantity = 10);
 -- The ANY and ALL operators are used with a WHERE or HAVING clause.
 -- The ANY operator returns true if any of the subquery values meet the condition.
 -- The ALL operator returns true if all of the subquery values meet the condition.
+
+
+
+-- DROP query:
+DROP TABLE university_professors;
+
+
+
+
+-- Type CASTs:
+-- Calculate the net amount as amount + fee
+SELECT transaction_date, amount + CAST(fee AS integer) AS net_amount 
+FROM transactions;
+-- Type casts are a possible solution for data type issues.
+-- If you know that a certain column stores numbers as text, you can cast the column to a numeric form, i.e. to integer.
