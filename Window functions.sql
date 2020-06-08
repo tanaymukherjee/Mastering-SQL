@@ -30,7 +30,7 @@ ORDER BY league_rank;
 
 
 
--- PARTITION BY claue:
+-- PARTITION BY clause:
 SELECT 
 	date,
 	season,
@@ -139,3 +139,73 @@ LEFT JOIN AWAY ON m.id = away.id
 WHERE m.season = '2014/2015'
 	  AND ((home.team_long_name = 'Manchester United' AND home.outcome = 'MU Loss')
 	  OR (away.team_long_name = 'Manchester United' AND away.outcome = 'MU Loss'));
+
+
+
+-- LEAD and LAG clause:
+SELECT TerritoryName, OrderDate, 
+       -- Specify the previous OrderDate in the window
+       LAG(OrderDate) 
+       -- Over the window, partition by territory & order by order date
+       OVER(PARTITION BY TerritoryName ORDER BY OrderDate) AS PreviousOrder,
+       -- Specify the next OrderDate in the window
+       LEAD(OrderDate) 
+       -- Create the partitions and arrange the rows
+       OVER(PARTITION BY TerritoryName ORDER BY OrderDate) AS NextOrder
+FROM Orders
+
+
+
+-- Assigning row numbers:
+SELECT TerritoryName, OrderDate, 
+       -- Assign a row number
+       ROW_NUMBER() 
+       -- Create the partitions and arrange the rows
+       OVER(PARTITION BY TerritoryName ORDER BY OrderDate) AS OrderCount
+FROM Orders
+
+
+
+-- Statistical functions:
+SELECT OrderDate, TerritoryName, 
+       -- Calculate the standard deviation
+	   STDEV(OrderPrice) 
+       OVER(PARTITION BY TerritoryName ORDER BY OrderDate) AS StdDevPrice	  
+FROM Orders
+
+
+
+-- Calculating mode
+-- Example 1:
+-- Create a CTE ModePrice that returns two columns (OrderPrice and UnitPriceFrequency)
+-- Create a CTE Called ModePrice which contains two columns
+WITH ModePrice (OrderPrice, UnitPriceFrequency)
+AS
+(
+	SELECT OrderPrice, 
+	ROW_NUMBER() 
+	OVER(PARTITION BY OrderPrice ORDER BY OrderPrice) AS UnitPriceFrequency
+	FROM Orders 
+)
+
+-- Select everything from the CTE
+SELECT * 
+FROM ModePrice
+
+-- Example 2:
+-- Use the CTE ModePrice to return the value of OrderPrice with the highest row number.
+-- CTE from the previous exercise
+WITH ModePrice (OrderPrice, UnitPriceFrequency)
+AS
+(
+	SELECT OrderPrice,
+	ROW_NUMBER() 
+    OVER (PARTITION BY OrderPrice ORDER BY OrderPrice) AS UnitPriceFrequency
+	FROM Orders
+)
+
+-- Select the order price from the CTE
+SELECT OrderPrice AS ModeOrderPrice
+FROM ModePrice
+-- Select the maximum UnitPriceFrequency from the CTE
+WHERE UnitPriceFrequency IN (SELECT MAX(UnitPriceFrequency) From ModePrice)
