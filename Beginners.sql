@@ -219,7 +219,18 @@ ALTER TABLE cars ADD CONSTRAINT id_pk PRIMARY KEY(id);
 
                       
                       
-                      
+-- Rounding numbers
+-- Round Cost to the nearest dollar
+SELECT Cost, ROUND(Cost, 0) AS RoundedCost FROM Shipments
+		      
+		      
+		      
+-- Truncating numbers
+-- Truncate cost to whole number
+SELECT Cost, ROUND(Cost, 0, 1) AS TruncateCost FROM Shipments
+
+		      
+		      
 -- STRING functions:
 -- Example 1: (LEN'gth of a string)
 SELECT LEN(description) AS description_length FROM grid;
@@ -231,33 +242,4 @@ SELECT LEFT(description, 25) AS first_25_left FROM grid;
 -- We now know where 'Weather' begins in the description column. But where does it end?
 SELECT description, CHARINDEX('Weather', description) AS start_of_string, 
   LEN ('Weather') AS length_of_string
-FROM grid WHERE description LIKE '%Weather%'; 		      
-	
-		      
-		      
--- DECLARE and SET a variable
--- Example 1:
--- Declare the variable @region, and specify the data type of the variable
-DECLARE @region VARCHAR(10)
-
--- Example 2:
--- Declare multiple variables
--- Declare your variables
-DECLARE @start DATE
-DECLARE @stop DATE
-DECLARE @affected INT;
--- SET the relevant values for each variable
-SET @start = '2014-01-24'
-SET @stop  = '2014-07-02'
-SET @affected =  5000 ;
-
-SELECT 
-  description,
-  nerc_region,
-  demand_loss_mw,
-  affected_customers
-FROM 
-  grid
--- Specify the date range of the event_date and the value for @affected
-WHERE event_date BETWEEN @start AND @stop
-AND affected_customers >= @affected;
+FROM grid WHERE description LIKE '%Weather%';
