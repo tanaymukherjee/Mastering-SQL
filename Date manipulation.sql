@@ -1,3 +1,20 @@
+-- Counting the number of days between dates
+-- Return the difference in OrderDate and ShipDate
+SELECT OrderDate, ShipDate, 
+       DATEDIFF(DD, OrderDate, ShipDate) AS Duration
+FROM Shipments
+-- DD for Day, MM for Month, YY for Year, HH for Hour
+
+
+
+-- Adding days to a date
+-- Return the DeliveryDate as 5 days after the ShipDate
+SELECT OrderDate, 
+       DATEADD(DD, 5, ShipDate) AS DeliveryDate 
+FROM Shipments
+
+
+
 -- Write a query to determine how many transactions exist per day.
 -- Use of CONVERT function:
 SELECT
