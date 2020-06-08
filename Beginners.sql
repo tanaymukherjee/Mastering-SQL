@@ -1,6 +1,7 @@
 -- For ranges:
 -- Method 1:
 SELECT title FROM films WHERE release_year >= 1994 AND release_year <= 2000;
+
 -- Method 2:
 SELECT title FROM films WHERE release_year BETWEEN 1994 AND 2000;
 
@@ -23,6 +24,23 @@ SELECT name FROM kids WHERE age IN (2, 4, 6, 8, 10);
 SELECT COUNT(*) FROM people WHERE birthdate IS NULL;
 
 SELECT name FROM people WHERE birthdate IS NOT NULL;
+
+
+
+-- Imputing missing value:
+-- Method1 : (using ISNULL function)
+-- Check the IncidentState column for missing values and replace them with the City column
+SELECT IncidentState, ISNULL(IncidentState, City) AS Location
+FROM Incidents
+-- Filter to only return missing values from IncidentState
+WHERE IncidentState IS NULL
+
+-- Method 2: (Using COALESCE function)
+-- Return the first non-null value in a list
+-- Replace missing values
+SELECT Country, COALESCE(Country, IncidentState, City) AS Location
+FROM Incidents
+WHERE Country IS NULL
 
 
 
