@@ -245,3 +245,50 @@ SELECT
 FROM home
 INNER JOIN away
 ON home.id = away.id;
+
+	    
+-- DECLARE and SET a variable
+-- Example 1:
+-- Declare the variable @region, and specify the data type of the variable
+DECLARE @region VARCHAR(10)
+
+-- Example 2:
+-- Declare multiple variables
+-- Declare your variables
+DECLARE @start DATE
+DECLARE @stop DATE
+DECLARE @affected INT;
+-- SET the relevant values for each variable
+SET @start = '2014-01-24'
+SET @stop  = '2014-07-02'
+SET @affected =  5000 ;
+
+SELECT 
+  description,
+  nerc_region,
+  demand_loss_mw,
+  affected_customers
+FROM 
+  grid
+-- Specify the date range of the event_date and the value for @affected
+WHERE event_date BETWEEN @start AND @stop
+AND affected_customers >= @affected;
+
+	    
+	    
+-- Creating a WHILE loop
+DECLARE @counter INT 
+SET @counter = 20
+
+-- Create a loop
+WHILE @counter < 30
+
+-- Loop code starting point
+BEGIN
+	SELECT @counter = @counter + 1
+-- Loop finish
+END
+
+-- Check the value of the variable
+SELECT @counter
+-- Query result will give us 30.
