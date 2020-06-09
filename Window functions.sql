@@ -82,7 +82,7 @@ SELECT
     -- Create a running total and running average of home goals
 	SUM(home_goal) OVER(ORDER BY date 
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total,
-    AVG(home_goal) OVER(ORDER BY date 
+    	AVG(home_goal) OVER(ORDER BY date 
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_avg
 FROM match
 WHERE 
@@ -105,9 +105,72 @@ WHERE
 	awayteam_id = 9908 
     AND season = '2011/2012';
 
+-- Example 3: (UNBOUNDED PRECEDING and UNBOUNDED FOLLOWING)
+SELECT
+	ir.IncidentDate,
+	ir.IncidentTypeID,
+	ir.NumberOfIncidents,
+	SUM(ir.NumberOfIncidents) OVER (
+		PARTITION BY ir.IncidentTypeID
+		ORDER BY ir.IncidentDate
+		RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+	) AS NumberOfIncidents
+FROM dbo.IncidentRollup ir
+	INNER JOIN dbo.Calendar c
+		ON ir.IncidentDate = c.Date
+WHERE
+	c.CalendarYear = 2019
+	AND c.CalendarMonth = 7
+	AND ir.IncidentTypeID IN (1, 2)
+ORDER BY
+	ir.IncidentDate,
+	ir.IncidentTypeID;
+
+-- Example 4: (By Rows and Current)
+-- Calculate the sum of the three preceding rows and the current row. Here, we look at ROWS rather than a range.
+SELECT
+	ir.IncidentDate,
+	ir.IncidentTypeID,
+	ir.NumberOfIncidents,
+	SUM(ir.NumberOfIncidents) OVER (
+		PARTITION BY ir.IncidentTypeID
+		ORDER BY ir.IncidentDate
+		ROWS BETWEEN 3 PRECEDING AND CURRENT ROW
+	) AS NumberOfIncidents
+FROM dbo.IncidentRollup ir
+	INNER JOIN dbo.Calendar c
+		ON ir.IncidentDate = c.Date
+WHERE
+	c.CalendarYear = 2019
+	AND c.CalendarMonth = 7
+	AND ir.IncidentTypeID IN (1, 2)
+ORDER BY
+	ir.IncidentTypeID,
+	ir.IncidentDate;
+
+-- Example 5: (By Rows to Rows)
+SELECT
+	ir.IncidentDate,
+	ir.IncidentTypeID,
+	ir.NumberOfIncidents,
+	SUM(ir.NumberOfIncidents) OVER (
+		PARTITION BY ir.IncidentTypeID
+		ORDER BY ir.IncidentDate
+		ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING
+	) AS NumberOfIncidents
+FROM dbo.IncidentRollup ir
+	INNER JOIN dbo.Calendar c
+		ON ir.IncidentDate = c.Date
+WHERE
+	c.CalendarYear = 2019
+	AND c.CalendarMonth = 7
+	AND ir.IncidentTypeID IN (1, 2)
+ORDER BY
+	ir.IncidentTypeID,
+	ir.IncidentDate;
 
 
-
+		    
 -- All of it together:
 -- Set up the home team CTE
 WITH home AS (
@@ -143,6 +206,7 @@ WHERE m.season = '2014/2015'
 
 
 -- LEAD and LAG clause:
+-- The LAG() and LEAD() window functions give us the ability to look backward or forward in time, respectively.
 SELECT TerritoryName, OrderDate, 
        -- Specify the previous OrderDate in the window
        LAG(OrderDate) 
@@ -154,8 +218,67 @@ SELECT TerritoryName, OrderDate,
        OVER(PARTITION BY TerritoryName ORDER BY OrderDate) AS NextOrder
 FROM Orders
 
+	      
+	      
+-- Seeing the prior three periods
+-- Each call to LAG() or LEAD() returns either a NULL or a single row.
+-- If you want to see multiple periods back, you can include multiple calls to LAG() or LEAD()
+SELECT
+	ir.IncidentDate,
+	ir.IncidentTypeID,
+    -- Fill in two periods ago
+	LAG(ir.NumberOfIncidents, 2) OVER (
+		PARTITION BY ir.IncidentTypeID
+		ORDER BY ir.IncidentDate
+	) AS Trailing2Day,
+    -- Fill in one period ago
+	LAG(ir.NumberOfIncidents, 1) OVER (
+		PARTITION BY ir.IncidentTypeID
+		ORDER BY ir.IncidentDate
+	) AS Trailing1Day,
+	ir.NumberOfIncidents AS CurrentDayIncidents,
+    -- Fill in next period
+	LEAD(ir.NumberOfIncidents, 1) OVER (
+		PARTITION BY ir.IncidentTypeID
+		ORDER BY ir.IncidentDate
+	) AS NextDay
+FROM dbo.IncidentRollup ir
+WHERE
+	ir.IncidentDate >= '2019-07-01'
+	AND ir.IncidentDate <= '2019-07-31'
+	AND ir.IncidentTypeID IN (1, 2)
+ORDER BY
+	ir.IncidentTypeID,
+	ir.IncidentDate;
+	      
 
 
+-- Calculating days elapsed between incidents
+-- Recall that DATEDIFF() gives the difference between two dates. We can combine this with LAG() and LEAD() to get our results.
+SELECT
+	ir.IncidentDate,
+	ir.IncidentTypeID,
+    -- Fill in the days since last incident
+	DATEDIFF(DAY, LAG(ir.IncidentDate, 1) OVER (
+		PARTITION BY ir.IncidentTypeID
+		ORDER BY ir.IncidentDate
+	), ir.IncidentDate) AS DaysSinceLastIncident,
+    -- Fill in the days until next incident
+	DATEDIFF(DAY, ir.IncidentDate, LEAD(ir.IncidentDate, 1) OVER (
+		PARTITION BY ir.IncidentTypeID
+		ORDER BY ir.IncidentDate
+	)) AS DaysUntilNextIncident
+FROM dbo.IncidentRollup ir
+WHERE
+	ir.IncidentDate >= '2019-07-02'
+	AND ir.IncidentDate <= '2019-07-31'
+	AND ir.IncidentTypeID IN (1, 2)
+ORDER BY
+	ir.IncidentTypeID,
+	ir.IncidentDate;
+	      
+	      
+	      
 -- Assigning row numbers:
 SELECT TerritoryName, OrderDate, 
        -- Assign a row number
@@ -428,3 +551,90 @@ ORDER BY
 	c.DayOfWeek,
 	c.IsWeekend;
 						 
+
+						 
+-- Contrasting ROW_NUMBER(), RANK(), and DENSE_RANK()
+SELECT
+	ir.IncidentDate,
+	ir.NumberOfIncidents,
+	-- Note that all of these are in descending order!
+	ROW_NUMBER() OVER (ORDER BY ir.NumberOfIncidents DESC) AS rownum,
+	RANK() OVER (ORDER BY ir.NumberOfIncidents DESC) AS rk,
+	DENSE_RANK() OVER (ORDER BY ir.NumberOfIncidents DESC) AS dr
+FROM dbo.IncidentRollup ir
+WHERE
+	ir.IncidentTypeID = 3
+	AND ir.NumberOfIncidents >= 8
+ORDER BY
+	ir.NumberOfIncidents DESC;
+						 
+						 
+						 
+-- Exercise for maximum overlap:
+
+-- Part 1: Analyze client data for potential fraud
+-- we will analyze day spa data to look for potential fraud.
+-- Our company gives each customer one pass for personal use and a single guest pass.
+-- We have check-in and check-out data for each client and guest passes tie back to the base customer ID.
+-- This means that there might be overlap when a client and guest both check in together.
+-- We want to see if there are at least three overlapping entries for a single client, as that would be a violation of our business rule.
+-- The key to thinking about overlapping entries is to unpivot our data and think about the stream of entries and exits.
+-- This section focuses on entrances:  CustomerVisitStart
+SELECT
+	dsv.CustomerID,
+	dsv.CustomerVisitStart AS TimeUTC,
+	1 AS EntryCount,
+    -- We want to know each customer's entrance stream
+    -- Get a unique, ascending row number
+	ROW_NUMBER() OVER (
+      -- Break this out by customer ID
+      PARTITION BY dsv.CustomerID
+      -- Ordered by the customer visit start date
+      ORDER BY dsv.CustomerVisitStart
+    ) AS StartOrdinal
+FROM dbo.DaySpaVisit dsv
+UNION ALL
+-- This section focuses on departures:  CustomerVisitEnd
+SELECT
+	dsv.CustomerID,
+	dsv.CustomerVisitEnd AS TimeUTC,
+	-1 AS EntryCount,
+	NULL AS StartOrdinal
+FROM dbo.DaySpaVisit dsv
+						 
+-- Part 2: Build a stream of events
+-- In the prior exercise, we broke out day spa data into a stream of entrances and exits.
+-- Unpivoting the data allows us to move to the next step, which is to order the entire stream.
+-- The results from the prior exercise are now in a temporary table called #StartStopPoints.
+-- The columns in this table are CustomerID, TimeUTC, EntryCount, and StartOrdinal.
+-- These are the only columns you will need to use in this exercise.
+-- TimeUTC represents the event time, EntryCount indicates the net change for the event (+1 or -1), and StartOrdinal appears for entrance events and gives the order of entry.					 
+SELECT s.*,
+    -- Build a stream of all check-in and check-out events
+	ROW_NUMBER() OVER (
+      -- Break this out by customer ID
+      PARTITION BY s.CustomerID
+      -- Order by event time and then the start ordinal
+      -- value (in case of exact time matches)
+      ORDER BY s.TimeUTC, s.StartOrdinal
+    ) AS StartOrEndOrdinal
+FROM #StartStopPoints s;
+						 
+-- Part3: Complete the fraud analysis
+-- So far, we have broken out day spa data into a stream of entrances and exits and ordered this stream chronologically.
+-- This stream contains two critical fields, StartOrdinal and StartOrEndOrdinal.
+-- StartOrdinal is the chronological ordering of all entrances.
+-- StartOrEndOrdinal contains all entrances and exits in order.
+-- Armed with these two pieces of information, we can find the maximum number of concurrent visits.
+-- The results from the prior exercise are now in a temporary table called #StartStopOrder.
+SELECT
+	s.CustomerID,
+	MAX(2 * s.StartOrdinal - s.StartOrEndOrdinal) AS MaxConcurrentCustomerVisits
+FROM #StartStopOrder s
+WHERE s.EntryCount = 1
+GROUP BY s.CustomerID
+-- The difference between 2 * start ordinal and the start/end
+-- ordinal represents the number of concurrent visits
+HAVING MAX(2 * s.StartOrdinal - s.StartOrEndOrdinal) > 2
+-- Sort by the largest number of max concurrent customer visits
+ORDER BY MaxConcurrentCustomerVisits DESC;
