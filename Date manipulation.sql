@@ -257,7 +257,7 @@ FROM dbo.Dates d;
 							   
 							   
 							   
--- Convert strings to dates
+-- Convert strings to dates:
 -- The CONVERT() function behaves similarly to CAST().
 -- When translating strings to dates, the two functions do exactly the same work under the covers.
 -- Although we used all three parameters for CONVERT() during a prior exercise, we will only need two parameters here: the data type and input expression.
@@ -272,7 +272,7 @@ FROM dbo.Dates d;
 				     
 				     
 				     
--- Parse strings to dates
+-- Parse strings to dates:
 -- Changing our language for data loading is not always feasible.
 -- Instead of using the SET LANGUAGE syntax, we can instead use the PARSE() function to parse a string as a date type using a specific locale.
 -- We will once again use the dbo.Dates table, this time parsing all of the dates as German using the de-de locale.				     
@@ -284,6 +284,168 @@ SELECT
 	PARSE(d.DateText AS DATETIME2(7) USING 'de-de') AS StringAsDateTime2
 FROM dbo.Dates d;
 
+				     
+
+-- Changing a date's offset:
+-- We can use the SWITCHOFFSET() function to change the time zone of a DATETIME, DATETIME2, or DATETIMEOFFSET typed date or a valid date string.
+-- SWITCHOFFSET() takes two parameters: the date or string as input and the time zone offset.
+-- It returns the time in that new time zone, so 3:00 AM Eastern Daylight Time will become 2:00 AM Central Daylight Time.
+
+-- Example 1:
+-- The 2016 Summer Olympics in Rio de Janeiro started at 11 PM UTC on August 8th, 2016.
+-- Starting with a string containing that date and time, we can see what time that was in other locales.
+DECLARE
+	@OlympicsUTC NVARCHAR(50) = N'2016-08-08 23:00:00';
+SELECT
+	-- Fill in the time zone for Brasilia, Brazil
+	SWITCHOFFSET(@OlympicsUTC, '-03:00') AS BrasiliaTime,
+	-- Fill in the time zone for Chicago, Illinois
+	SWITCHOFFSET(@OlympicsUTC, '-05:00') AS ChicagoTime,
+	-- Fill in the time zone for New Delhi, India
+	SWITCHOFFSET(@OlympicsUTC, '+05:30') AS NewDelhiTime;
+				     
+-- Example 2:
+-- Using the time zone DMV to look up times
+-- The SWITCHOFFSET() function has an undesirable limitation: you need to know the offset value yourself.
+-- You might memorize that US Eastern Standard Time is UTC -5:00 and Eastern Daylight Time is UTC -04:00, but knowing India Standard Time or Tuvalu Time might be a stretch.
+-- Fortunately, we have a Dynamic Management View (DMV) available to help us: sys.time_zone_info.
+-- This searches the set of time zones available on the operating system (in the Windows registry or /usr/share/zoneinfo on Linux or macOS).
+-- The 2016 Summer Olympics in Rio de Janeiro started at 11 PM UTC on August 8th, 2016. Starting with a string containing that date and time, we can see what time that was in other locales knowing only the time zone name but not its offset.
+DECLARE
+	@OlympicsUTC NVARCHAR(50) = N'2016-08-08 23:00:00';
+
+SELECT
+	-- Fill in the function call and offset value
+	SWITCHOFFSET(@OlympicsUTC, tzi.current_utc_offset) AS NewDelhiTime
+-- Fill in the DMV name
+FROM sys.time_zone_info AS tzi
+WHERE
+	-- Fill in the time zone name
+	tzi.name = N'India Standard Time';			     
+				     
+				     
+				     
+				     
+-- Converting to a date offset:
+-- In addition to SWITCHOFFSET(), we can use the TODATETIMEOFFSET() to turn an existing date into a date type with an offset.
+-- If our starting time is in UTC, we will need to correct for time zone and then append an offset.
+-- To correct for the time zone, we can add or subtract hours (and minutes) manually.
+DECLARE
+	@OlympicsClosingUTC DATETIME2(0) = '2016-08-21 23:00:00';
+
+SELECT
+	-- Fill in 7 hours back and a -07:00 offset
+	TODATETIMEOFFSET(DATEADD(HOUR, -7, @OlympicsClosingUTC), '-07:00') AS PhoenixTime,
+	-- Fill in 12 hours forward and a 720 minute difference
+	TODATETIMEOFFSET(DATEADD(HOUR, 12, @OlympicsClosingUTC), 720) AS TuvaluTime;
+-- For the time in Phoenix, Arizona, you know that they observe Mountain Standard Time, which is UTC -7 year-round.
+-- The island chain of Tuvalu has its own time which is 720 minutes (12 hours) ahead of UTC.
+				     
+				     
+				     
+-- Handling Invalid dates:
+-- We use TRY_CONVERT(), TRY_CAST(), and TRY_PARSE() set of functions instead of usual CONVERT(), CAST () and PARSE().
+-- Each of these functions will safely parse string data and attempt to convert to another type, returning NULL if the conversion fails.
+-- Conversion to, e.g., a date type can fail for several reasons.
+-- If the input string is not a date, conversion will fail.
+-- If the input type is in a potentially ambiguous format, conversion might fail.
+-- An example of this is the date 04/01/2019 which has a different meaning in the United States (April 1, 2019) versus most European countries (January 4th, 2019).
+DECLARE
+	@GoodDateINTL NVARCHAR(30) = '2019-03-01 18:23:27.920',
+	@GoodDateDE NVARCHAR(30) = '13.4.2019',
+	@GoodDateUS NVARCHAR(30) = '4/13/2019',
+	@BadDate NVARCHAR(30) = N'SOME BAD DATE';
+
+-- The prior solution using TRY_CAST
+SELECT
+	TRY_CAST(@GoodDateINTL AS DATETIME2(3)) AS GoodDateINTL,
+	TRY_CAST(@GoodDateDE AS DATE) AS GoodDateDE,
+	TRY_CAST(@GoodDateUS AS DATE) AS GoodDateUS,
+	TRY_CAST(@BadDate AS DATETIME2(3)) AS BadDate;
+
+SELECT
+	TRY_PARSE(@GoodDateINTL AS DATETIME2(3)) AS GoodDateINTL,
+    -- Fill in the correct region based on our input
+    -- Be sure to match these data types with the
+    -- TRY_CAST() examples above!
+	TRY_PARSE(@GoodDateDE AS DATE USING 'de-de') AS GoodDateDE,
+	TRY_PARSE(@GoodDateUS AS DATE USING 'en-us') AS GoodDateUS,
+    -- TRY_PARSE can't fix completely invalid dates
+	TRY_PARSE(@BadDate AS DATETIME2(3) USING 'sk-sk') AS BadDate;				     
+
+					     
+					     
+					     
+-- Convert imported data to dates with time zones:
+-- Now that we have seen the three type-safe conversion functions, we can begin to apply them against real data sets.
+-- In this scenario, we will parse data from the dbo.ImportedTime table.
+-- We used a different application to load data from this table and looked at it in a prior exercise.
+-- This time, we will retrieve data for all rows, not just the ones the importing application marked as valid.			     
+WITH EventDates AS
+(
+    SELECT
+        -- Fill in the missing try-conversion function
+        TRY_CONVERT(DATETIME2(3), it.EventDate) AT TIME ZONE it.TimeZone AS EventDateOffset,
+        it.TimeZone
+    FROM dbo.ImportedTime it
+        INNER JOIN sys.time_zone_info tzi
+			ON it.TimeZone = tzi.name
+)
+SELECT
+    -- Fill in the approppriate event date to convert
+	CONVERT(NVARCHAR(50), ed.EventDateOffset) AS EventDateOffsetString,
+	CONVERT(DATETIME2(0), ed.EventDateOffset) AS EventDateLocal,
+	ed.TimeZone,
+    -- Convert from a DATETIMEOFFSET to DATETIME at UTC
+	CAST(ed.EventDateOffset AT TIME ZONE 'UTC' AS DATETIME2(0)) AS EventDateUTC,
+    -- Convert from a DATETIMEOFFSET to DATETIME with time zone
+	CAST(ed.EventDateOffset AT TIME ZONE 'US Eastern Standard Time'  AS DATETIME2(0)) AS EventDateUSEast
+FROM EventDates ed;
+				     
+				     
+				     
+				     
+-- Test type-safe conversion function performance:
+-- In the last two exercises, we looked at the TRY_CAST(), TRY_CONVERT(), and TRY_PARSE() functions.
+-- These functions do not all perform equally well. In this exercise, you will run a performance test against all of the dates in our calendar table.
+-- To make it easier, we have pre-loaded dates in the dbo.Calendar table into a temp table called DateText, where there is a single NVARCHAR(50) column called DateText.			     
+
+-- Example 1:
+-- Try out how fast the TRY_CAST() function is
+DECLARE @StartTimeCast DATETIME2(7) = SYSUTCDATETIME();
+SELECT TRY_CAST(DateText AS DATE) AS TestDate FROM #DateText;
+DECLARE @EndTimeCast DATETIME2(7) = SYSUTCDATETIME();
+
+-- Determine how much time the conversion took by
+-- calculating the date difference from @StartTimeCast to @EndTimeCast
+SELECT
+    DATEDIFF(MILLISECOND, @StartTimeCast, @EndTimeCast) AS ExecutionTimeCast;
+			
+-- Example 2:
+-- Try out how fast the TRY_CONVERT() function is
+DECLARE @StartTimeConvert DATETIME2(7) = SYSUTCDATETIME();
+SELECT TRY_CONVERT(DATE, DateText) AS TestDate FROM #DateText;
+DECLARE @EndTimeConvert DATETIME2(7) = SYSUTCDATETIME();
+
+-- Determine how much time the conversion took by
+-- calculating the difference from start time to end time
+-- Note that the names of the start and end time parameters have changed!
+SELECT
+    DATEDIFF(MILLISECOND, @StartTimeConvert, @EndTimeConvert) AS ExecutionTimeConvert;	
+										      
+-- -- Example 3:
+-- Try out how fast the TRY_PARSE() function is
+DECLARE @StartTimeParse DATETIME2(7) = SYSUTCDATETIME();
+SELECT TRY_PARSE(DateText AS DATE) AS TestDate FROM #DateText;
+DECLARE @EndTimeParse DATETIME2(7) = SYSUTCDATETIME();
+
+-- Determine how much time the conversion took by
+-- calculating the difference from start time to end time
+-- Note that the names of the start and end time parameters have changed again!
+SELECT
+    DATEDIFF(MILLISECOND, @StartTimeParse, @EndTimeParse) AS ExecutionTimeParse;
+-- Result: TRY_CAST() and TRY_CONVERT() are both faster than TRY_PARSE()
+				     
 				     
 				     
 -- Write a query to determine how many transactions exist per day.
