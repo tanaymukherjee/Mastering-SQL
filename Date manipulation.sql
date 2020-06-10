@@ -481,7 +481,7 @@ GROUP BY
 
 
 
--- Which day of week is busiest?
+-- Which day of week is busiest?:
 -- Use of DATENAME, DATEDIFF functions:
 SELECT
     -- Select the day of week value for StartDate
@@ -496,7 +496,7 @@ ORDER BY TotalTripHours DESC
 
 
 
--- Find the outliers
+-- Find the outliers:
 SELECT
 	-- Calculate TotalRideHours using SUM() and DATEDIFF()
   	SUM(DATEDIFF(SECOND, StartDate, EndDate))/ 3600 AS TotalRideHours,
@@ -508,3 +508,168 @@ FROM CapitalBikeShare
 -- Only include Saturday
 WHERE DATENAME(WEEKDAY, StartDate) = 'Saturday' 
 GROUP BY CONVERT(DATE, StartDate);
+
+
+
+-- Date truncation:
+-- Unlike date_part() or EXTRACT(), date_trunc() keeps date/time units larger than the field you specify as part of the date.
+-- So instead of just extracting one component of a timestamp, date_trunc() returns the specified unit and all larger ones as well.
+-- Aggregate daily counts by month
+SELECT date_trunc('month', day) AS month,
+       avg(count)
+  -- Subquery to compute daily counts
+  FROM (SELECT date_trunc('day', date_created) AS day,
+               count(*) AS count
+          FROM evanston311
+         GROUP BY day) AS daily_count
+ GROUP BY month
+ ORDER BY month;
+ 
+ 
+ 
+ -- Find missing dates:
+-- The generate_series() function can be useful for identifying missing dates.
+-- generate_series(from, to, interval)
+-- where from and to are dates or timestamps, and interval can be specified as a string with a number and a unit of time, such as '1 month'
+SELECT day
+-- 1) Subquery to generate all dates
+-- from min to max date_created
+  FROM (SELECT generate_series(min(date_created),
+                               max(date_created),
+                               '1 day')::date AS day
+          -- What table is date_created in?
+          FROM evanston311) AS all_dates      
+-- 4) Select dates (day from above) that are NOT IN the subquery
+ WHERE day NOT IN 
+       -- 2) Subquery to select all date_created values as dates
+       (SELECT date_created::date
+          FROM evanston311);
+	  
+	  
+	  
+-- Custom aggregation periods:
+-- Use generate_series() to create bins of 6 month intervals. Recall that the upper bin values are exclusive, so the values need to be one day greater than the last day to be included in the bin.
+-- Generate 6 month bins covering 2016-01-01 to 2018-06-30
+
+-- Create lower bounds of bins
+SELECT generate_series('2016-01-01',  -- First bin lower value
+                       '2018-01-01',  -- Last bin lower value
+                       '6 months'::interval) AS lower,
+-- Create upper bounds of bins
+       generate_series('2016-07-01',  -- First bin upper value
+                       '2018-07-01',  -- Last bin upper value
+                       '6 months'::interval) AS upper;
+		       
+-- Count the number of requests created per day. Remember to not count *, or you will risk counting NULL values.
+-- Count number of requests made per day 
+SELECT day, count(date_created) AS count
+-- Use a daily series from 2016-01-01 to 2018-06-30 
+-- to include days with no requests
+  FROM (SELECT generate_series('2016-01-01',  -- series start date
+                               '2018-06-30',  -- series end date
+                               '1 day'::interval)::date AS day) AS daily_series
+       LEFT JOIN evanston311
+       -- match day from above (which is a date) to date_created
+       ON day = date_created::date
+ GROUP BY day;
+ 
+ -- Assign each daily count to a single 6 month bin by joining bins to daily_counts.
+-- Compute the median value per bin using percentile_disc()
+-- Bins from Step 1
+WITH bins AS (
+	 SELECT generate_series('2016-01-01',
+                            '2018-01-01',
+                            '6 months'::interval) AS lower,
+            generate_series('2016-07-01',
+                            '2018-07-01',
+                            '6 months'::interval) AS upper),
+-- Daily counts from Step 2
+     daily_counts AS (
+     SELECT day, count(date_created) AS count
+       FROM (SELECT generate_series('2016-01-01',
+                                    '2018-06-30',
+                                    '1 day'::interval)::date AS day) AS daily_series
+            LEFT JOIN evanston311
+            ON day = date_created::date
+      GROUP BY day)
+-- Select bin bounds
+SELECT lower, 
+       upper, 
+       -- Compute median of count for each bin
+       percentile_disc(0.5) WITHIN GROUP (ORDER BY count) AS median
+  -- Join bins and daily_counts
+  FROM bins
+       LEFT JOIN daily_counts
+       -- Where the day is between the bin bounds
+       ON day >= lower
+          AND day < upper
+ -- Group by bin bounds
+ GROUP BY lower, upper
+ ORDER BY lower;
+ 
+ 
+ 
+-- Monthly average with missing dates:
+-- Generate a series of dates from 2016-01-01 to 2018-06-30.
+-- Join the series to a subquery to count the number of requests created per day.
+-- Use date_trunc() to get months from date, which has all dates, NOT day.
+-- Use coalesce() to replace NULL count values with 0. Compute the average of this value.
+-- generate series with all days from 2016-01-01 to 2018-06-30
+WITH all_days AS 
+     (SELECT generate_series('2016-01-01',
+                             '2018-06-30',
+                             '1 day'::interval) AS date),
+     -- Subquery to compute daily counts
+     daily_count AS 
+     (SELECT date_trunc('day', date_created) AS day,
+             count(*) AS count
+        FROM evanston311
+       GROUP BY day)
+-- Aggregate daily counts by month using date_trunc
+SELECT date_trunc('month', date) AS month,
+       -- Use coalesce to replace NULL count values with 0
+       avg(coalesce(count, 0)) AS average
+  FROM all_days
+       LEFT JOIN daily_count
+       -- Joining condition
+       ON all_days.date=daily_count.day
+ GROUP BY month
+ ORDER BY month; 
+ 
+ 
+ 
+ -- Longest gap
+ -- Compute the gaps
+WITH request_gaps AS (
+        SELECT date_created,
+               -- lead or lag
+               lag(date_created) OVER (ORDER BY date_created) AS previous,
+               -- compute gap as date_created minus lead or lag
+               date_created - lag(date_created) OVER (ORDER BY date_created) AS gap
+          FROM evanston311)
+-- Select the row with the maximum gap
+SELECT *
+  FROM request_gaps
+-- Subquery to select maximum gap from request_gaps
+ WHERE gap = (SELECT max(gap) 
+                FROM request_gaps);
+		
+		
+		
+-- Get Corr() between avg. completion time and monthly requests:
+-- Compute correlation (corr) between 
+-- avg_completion time and count from the subquery
+SELECT corr(avg_completion, count)
+  -- Convert date_created to its month with date_trunc
+  FROM (SELECT date_trunc('month', date_created) AS month, 
+               -- Compute average completion time in number of seconds           
+               avg(EXTRACT(epoch FROM date_completed - date_created)) AS avg_completion, 
+               -- Count requests per month
+               count(*) AS count
+          FROM evanston311
+         -- Limit to rodents
+         WHERE category='Rodents- Rats' 
+         -- Group by month, created above
+         GROUP BY month) 
+         -- Required alias for subquery 
+         AS monthly_avgs;
