@@ -173,7 +173,7 @@ GROUP BY StartStation;
 
 								 
 								 
--- CREATE PROCEDURE with OUTPUT								 
+-- CREATE PROCEDURE with OUTPUT:							 
 -- Create a Stored Procedure named cuspSumRideHrsSingleDay in the dbo schema that accepts a date and returns the total ride hours for the date passed
 -- Create the stored procedure
 CREATE PROCEDURE dbo.cuspSumRideHrsSingleDay
@@ -196,7 +196,7 @@ END
 								 
 								 
 								 
--- Use SP to INSERT
+-- Use SP to INSERT:
 -- Create a stored procedure named cusp_RideSummaryCreate in the dbo schema that will insert a record into the RideSummary table.								 
 -- Create the stored procedure
 CREATE PROCEDURE dbo.cusp_RideSummaryCreate 
@@ -222,7 +222,7 @@ END;
 				   
 				   
 				   
--- Use SP to UPDATE
+-- Use SP to UPDATE:
 -- Create a stored procedure named cuspRideSummaryUpdate in the dbo schema that will update an existing record in the RideSummary table.
 -- Create the stored procedure
 CREATE PROCEDURE dbo.cuspRideSummaryUpdate
@@ -245,7 +245,7 @@ END;
 		      
 		      
 		      
--- Use SP to DELETE
+-- Use SP to DELETE:
 -- Create a stored procedure named cuspRideSummaryDelete in the dbo schema that will delete an existing record in the RideSummary table and RETURN the number of rows affected via output parameter.
 -- Create the stored procedure
 CREATE PROCEDURE dbo.cuspRideSummaryDelete
@@ -264,7 +264,7 @@ END;
 		      
 		      
 		      
--- EXECUTE with OUTPUT parameter
+-- EXECUTE with OUTPUT parameter:
 Execute the dbo.cuspSumRideHrsSingleDay stored procedure and capture the output parameter.
 -- Create @RideHrs
 DECLARE @RideHrs AS numeric(18,0)
@@ -279,7 +279,7 @@ SELECT @RideHrs AS RideHours
 		      
 		      
 		      
--- EXECUTE with return value
+-- EXECUTE with return value:
 -- Execute dbo.cuspRideSummaryUpdate to change the RideHours to 300 for '3/1/2018'.
 -- Store the return code from the stored procedure.		      
 -- Create @ReturnStatus
@@ -301,7 +301,7 @@ WHERE Date = '3/1/2018';
 		      
 	
 		      
--- EXECUTE with OUTPUT & return value
+-- EXECUTE with OUTPUT & return value:
 -- Store and display both the output parameter and return code when executing dbo.cuspRideSummaryDelete SP.
 -- Create @ReturnStatus
 DECLARE @ReturnStatus AS int
@@ -354,7 +354,7 @@ END;
 		      
 		      
 		      
--- CATCH an error
+-- CATCH an error:
 -- Execute dbo.cuspRideSummaryDelete and pass an invalid @DateParm value of '1/32/2018' to see how the error is handled.
 -- The invalid date will be accepted by the nvarchar data type of @DateParm, but the error will occur when SQL attempts to convert it to a valid date when executing the stored procedure.
 -- Create @ReturnCode
