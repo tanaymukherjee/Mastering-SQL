@@ -243,3 +243,95 @@ SELECT LEFT(description, 25) AS first_25_left FROM grid;
 SELECT description, CHARINDEX('Weather', description) AS start_of_string, 
   LEN ('Weather') AS length_of_string
 FROM grid WHERE description LIKE '%Weather%';
+
+		      
+		      
+-- Trimming:
+-- Trim digits 0-9, #, /, ., and spaces from the beginning and end of street.
+SELECT distinct street,
+       -- Trim off unwanted characters from street
+       trim(street, '0123456789 #/.') AS cleaned_street
+  FROM evanston311
+ ORDER BY street;
+		      
+		      
+		      
+-- Concatenate strings:
+-- Concatenate house_num, a space, and street
+-- and trim spaces from the start of the result
+SELECT ltrim(concat(house_num, ' ', street)) AS address
+  FROM evanston311;
+		    
+		    
+		    
+-- Split strings on a delimiter:
+-- Use split_part() to select the first word in street; alias the result as street_name.
+-- Select the first word of the street value
+SELECT split_part(street, ' ', 1) AS street_name, 
+       count(*)
+  FROM evanston311
+ GROUP BY street_name
+ ORDER BY count DESC
+ LIMIT 20;
+		    
+		    
+		    
+-- Shorten long strings:
+-- Select the first 50 chars when length is greater than 50
+SELECT CASE WHEN length(description) > 50
+            THEN left(description, 50) || '...'
+       -- otherwise just select description
+       ELSE description
+       END
+  FROM evanston311
+ -- limit to descriptions that start with the word I
+ WHERE description LIKE 'I %'
+ ORDER BY description;
+		    
+		    
+		    
+-- Group and recode values:
+-- Create recode with a standardized column; use split_part() and then rtrim() to remove any remaining whitespace on the result of split_part().
+-- Fill in the command below with the name of the temp table
+DROP TABLE IF EXISTS recode;
+
+-- Create and name the temporary table
+CREATE TEMP TABLE recode AS
+-- Write the select query to generate the table 
+-- with distinct values of category and standardized values
+  SELECT DISTINCT category, 
+         rtrim(split_part(category, '-', 1)) AS standardized
+    -- What table are you selecting the above values from?
+    FROM evanston311;
+       
+-- Look at a few values before the next step
+SELECT DISTINCT standardized 
+  FROM recode
+ WHERE standardized LIKE 'Trash%Cart'
+    OR standardized LIKE 'Snow%Removal%';
+			  
+			  
+			  
+-- Create a table with indicator variables:
+-- To clear table if it already exists
+DROP TABLE IF EXISTS indicators;
+
+-- Create the temp table
+CREATE TEMP TABLE indicators AS
+  SELECT id, 
+         CAST (description LIKE '%@%' AS integer) AS email,
+         CAST (description LIKE '%___-___-____%' AS integer) AS phone 
+    FROM evanston311;
+
+-- Select the column you'll group by
+SELECT priority, 
+       -- Compute the proportion of rows with each indicator
+       sum(email)/count(*)::numeric AS email_prop, 
+       sum(phone)/count(*)::numeric AS phone_prop 
+  -- Tables to select from
+  FROM evanston311
+       LEFT JOIN indicators
+       -- Joining condition
+       ON evanston311.id=indicators.id
+ -- What are you grouping by?
+ GROUP BY priority;
