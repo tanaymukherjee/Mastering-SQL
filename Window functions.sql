@@ -72,6 +72,7 @@ ORDER BY (home_goal + away_goal) DESC;
 
 
 -- Sliding Windows:
+-- Frames:
 -- Syntax: ROW BETWEEN <start> AND <finish>
 -- Keywords: PRECEDING, FOLLOWING, UNBOUNDED PRECEDING, UNBOUNDED FOLLOWING, CURRENT ROW
 -- Example 1: (UNBOUNDED PRECEDING)
@@ -638,3 +639,121 @@ GROUP BY s.CustomerID
 HAVING MAX(2 * s.StartOrdinal - s.StartOrEndOrdinal) > 2
 -- Sort by the largest number of max concurrent customer visits
 ORDER BY MaxConcurrentCustomerVisits DESC;
+
+						 
+						 
+-- Fetch first value:
+-- It's often useful to get the first or last value in a dataset to compare all other values to it. 
+WITH All_Male_Medalists AS (
+  SELECT DISTINCT
+    Athlete
+  FROM Summer_Medals
+  WHERE Medal = 'Gold'
+    AND Gender = 'Men')
+
+SELECT
+  -- Fetch all athletes and the first althete alphabetically
+  Athlete,
+  FIRST_VALUE(Athlete) OVER (
+    ORDER BY Athlete ASC
+  ) AS First_Athlete
+FROM All_Male_Medalists;
+	
+						 
+
+-- Fetch last value:
+-- It's often useful to get the first or last value in a dataset to compare all other values to it. 	
+WITH Hosts AS (
+  SELECT DISTINCT Year, City
+    FROM Summer_Medals)
+
+SELECT
+  Year,
+  City,
+  -- Get the last city in which the Olympic games were held
+  LAST_VALUE(City) OVER (
+   ORDER BY Year ASC
+   RANGE BETWEEN
+     UNBOUNDED PRECEDING AND
+     UNBOUNDED FOLLOWING
+  ) AS Last_City
+FROM Hosts
+ORDER BY Year ASC;
+		
+						 
+						 
+-- Paging events:
+-- There are exactly 666 unique events in the Summer Medals Olympics dataset.
+-- If you want to chunk them up to analyze them piece by piece, you'll need to split the events into groups of approximately equal size.
+WITH Events AS (
+  SELECT DISTINCT Event
+  FROM Summer_Medals)
+  
+SELECT
+  --- Split up the distinct events into 111 unique groups
+  Event,
+  NTILE(111) OVER (ORDER BY Event ASC) AS Page
+FROM Events
+ORDER BY Event ASC;						 
+
+-- Top, middle, and bottom thirds:
+-- Splitting your data into thirds or quartiles is often useful to understand how the values in your dataset are spread.
+--  Getting summary statistics (averages, sums, standard deviations, etc.) of the top, middle, and bottom thirds can help you determine what distribution your values follow.
+-- Split the athletes into top, middle, and bottom thirds based on their count of medals.
+-- Return the average of each third.
+WITH Athlete_Medals AS (
+  SELECT Athlete, COUNT(*) AS Medals
+  FROM Summer_Medals
+  GROUP BY Athlete
+  HAVING COUNT(*) > 1),
+  
+  Thirds AS (
+  SELECT
+    Athlete,
+    Medals,
+    NTILE(3) OVER (ORDER BY Medals DESC) AS Third
+  FROM Athlete_Medals)
+  
+SELECT
+  -- Get the average medals earned in each third
+  Third,
+  AVG(Medals) AS Avg_Medals
+FROM Thirds
+GROUP BY Third
+ORDER BY Third ASC;
+
+						 
+						 
+-- Pivoting with ranking:
+-- You want to produce an easy scannable table of the rankings of the three most populous EU countries by how many gold medals they've earned in the 2004 through 2012 Olympic games.					 
+-- Pivot the query's results by Year by filling in the new table's correct column names.						 
+CREATE EXTENSION IF NOT EXISTS tablefunc;
+
+SELECT * FROM CROSSTAB($$
+  WITH Country_Awards AS (
+    SELECT
+      Country,
+      Year,
+      COUNT(*) AS Awards
+    FROM Summer_Medals
+    WHERE
+      Country IN ('FRA', 'GBR', 'GER')
+      AND Year IN (2004, 2008, 2012)
+      AND Medal = 'Gold'
+    GROUP BY Country, Year)
+
+  SELECT
+    Country,
+    Year,
+    RANK() OVER
+      (PARTITION BY Year
+       ORDER BY Awards DESC) :: INTEGER AS rank
+  FROM Country_Awards
+  ORDER BY Country ASC, Year ASC;
+-- Fill in the correct column names for the pivoted table
+$$) AS ct (Country VARCHAR,
+           "2004" INTEGER,
+           "2008" INTEGER,
+           "2012" INTEGER)
+
+Order by Country ASC;						 
